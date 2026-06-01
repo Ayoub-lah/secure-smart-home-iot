@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Secure Smart Home — IoT Security Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Clash+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const app = initializeApp({ databaseURL: "https://smarthomeiot-fd84c-default-rtdb.europe-west1.firebasedatabase.app" });
+const db = getDatabase(app);
+
+// ── TEMPERATURE
+onValue(query(ref(db,"smarthome/temperature"), limitToLast(40)), snap => {
+  const d = snap.val(); if(!d) return;
+  const entries = Object.values(d);
+  const last = entries[entries.length-1];
+  const val = parseFloat(last.valeur);
+
+  document.getElementById('temp-big').textContent = val.toFixed(1);
+  document.getElementById('temp-sensor-badge').textContent = val.toFixed(1) + '°C';
+
+  const ring = document.getElementById('temp-ring-fill');
+  const pct = Math.min(100, (val/50)*100);
+  const circumference = 2 * Math.PI * 54;
+  ring.style.strokeDashoffset = circumference - (pct/100) * circumference;
+
+  const color = val > 38 ? '#ff2d55' : val > 30 ? '#ff9500' : '#30d158';
+  ring.style.stroke = color;
+  document.getElementById('temp-big').style.color = color;
+
+  if(val > 38) pushAlert('critical', '🌡', 'Température critique', `${val.toFixed(1)}°C — seuil 38°C dépassé`);
+
+  const labels = entries.map(e => new Date(e.timestamp).toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+  const values = entries.map(e => parseFloat(e.valeur));
+  updateChart(labels, values, val > 38 ? '#ff2d55' : '#30d158');
+
+  updateSensorGrid();
+});
+
+// ── MOUVEMENT
+onValue(query(ref(db,"smarthome/mouvement"), limitToLast(1)), snap => {
+  const d = snap.val(); if(!d) return;
+  const v = Object.values(d)[0].valeur;
+  setSensor('mouv', v === 1, v === 1 ? 'DÉTECTÉ' : 'AUCUN');
+});
+
+// ── PORTE
+onValue(query(ref(db,"smarthome/porte"), limitToLast(1)), snap => {
+  const d = snap.val(); if(!d) return;
+  const v = Object.values(d)[0].valeur;
+  setSensor('porte', v === 1, v === 1 ? 'OUVERTE' : 'FERMÉE');
+  if(v === 1) pushAlert('warning', '🚪', 'Porte ouverte', 'Accès détecté sur le point d\'entrée');
+});
+
+// ── FUMEE
+onValue(query(ref(db,"smarthome/fumee"), limitToLast(1)), snap => {
+  const d = snap.val(); if(!d) return;
+  const v = Object.values(d)[0].valeur;
+  setSensor('fumee', v === 1, v === 1 ? 'DÉTECTÉE' : 'NORMAL');
+  if(v === 1) pushAlert('critical', '🔥', 'FUMÉE DÉTECTÉE', 'Alerte critique — intervention immédiate');
+});
+
+window._db = db;
+window._ref = ref;
+
+function setSensor(id, active, text) {
+  const el = document.getElementById(id+'-val');
+  const dot = document.getElementById(id+'-dot');
+  const card = document.getElementById(id+'-card');
+  if(el) el.textContent = text;
+  const color = active ? (id === 'fumee' ? '#ff2d55' : '#ff9500') : '#30d158';
+  if(el) el.style.color = color;
+  if(dot) { dot.style.background = color; dot.style.boxShadow = `0 0 10px ${color}88`; }
+  if(card) card.style.borderColor = active ? color + '44' : 'var(--border)';
+}
+
+function updateSensorGrid() {}
+</script>
+
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root {
+  --bg: #000;
+  --bg1: #0a0a0a;
+  --bg2: #111;
+  --bg3: #1a1a1a;
+  --border: #222;
+  --border2: #333;
+  --ok: #30d158;
+  --warn: #ff9500;
+  --danger: #ff2d55;
+  --accent: #0a84ff;
+  --purple: #bf5af2;
+  --text: #e5e5e7;
+  --text2: #6e6e73;
+  --text3: #3a3a3c;
+  --mono: 'DM Mono', monospace;
+  --display: 'Bebas Neue', sans-serif;
+}
+
+html { scroll-behavior: smooth }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── NOISE TEXTURE ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0;
+}
+
+/* ── HEADER ── */
+header {
+  position: relative; z-index: 100;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.95);
+  backdrop-filter: blur(20px);
+}
+
+.logo {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.logo-icon {
+  width: 32px; height: 32px;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  background: var(--bg2);
+}
+
+.logo-text {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 2px;
+  color: #fff;
+}
+
+.logo-sub {
+  font-size: 9px;
+  color: var(--text2);
+  letter-spacing: 3px;
+  margin-top: -2px;
+}
+
+.header-nav {
+  display: flex; gap: 4px;
+}
+
+.nav-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text2);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover, .nav-btn.active {
+  color: var(--text);
+  border-color: var(--border2);
+  background: var(--bg2);
+}
+
+.header-right {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.badge-live {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 9px; letter-spacing: 2px;
+  color: var(--ok);
+  background: rgba(48,209,88,0.08);
+  border: 1px solid rgba(48,209,88,0.2);
+  padding: 4px 10px; border-radius: 20px;
+}
+
+.dot-pulse {
+  width: 5px; height: 5px;
+  border-radius: 50%; background: var(--ok);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.3;transform:scale(0.7)}
+}
+
+#hclock {
+  font-size: 11px; color: var(--text2); letter-spacing: 1px;
+}
+
+/* ── LAYOUT ── */
+.page {
+  position: relative; z-index: 1;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 20px 28px 32px;
+  display: grid;
+  grid-template-columns: 340px 1fr 300px;
+  grid-template-rows: auto auto auto auto;
+  gap: 12px;
+}
+
+/* ── CARD BASE ── */
+.card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.3s;
+}
+
+.card:hover { border-color: var(--border2) }
+
+.c-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.c-title {
+  font-size: 9px; letter-spacing: 3px;
+  color: var(--text2); text-transform: uppercase;
+  display: flex; align-items: center; gap: 7px;
+}
+
+.c-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.c-badge {
+  font-size: 8px; letter-spacing: 1px;
+  padding: 3px 8px; border-radius: 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+}
+
+/* ── COLONNE GAUCHE ── */
+.col-left {
+  grid-column: 1; grid-row: 1 / 5;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ── TEMP HERO ── */
+.temp-hero {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px 20px;
+}
+
+.temp-ring-wrap {
+  display: flex; align-items: center; justify-content: center;
+  margin: 8px 0 16px;
+  position: relative;
+}
+
+.temp-ring-wrap svg {
+  transform: rotate(-90deg);
+}
+
+.temp-ring-bg {
+  fill: none; stroke: var(--bg3); stroke-width: 6;
+}
+
+#temp-ring-fill {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 339.3;
+  stroke-dashoffset: 339.3;
+  transition: stroke-dashoffset 1s ease, stroke 0.5s;
+}
+
+.temp-center {
+  position: absolute;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+
+#temp-big {
+  font-family: var(--display);
+  font-size: 56px;
+  color: var(--ok);
+  line-height: 1;
+  transition: color 0.5s;
+}
+
+.temp-unit {
+  font-size: 12px; color: var(--text2);
+  letter-spacing: 2px; margin-top: -4px;
+}
+
+.temp-range {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px; margin-top: 8px;
+}
+
+.temp-range-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.tr-val {
+  font-size: 13px; font-weight: 500;
+  color: var(--text);
+}
+
+.tr-label {
+  font-size: 8px; color: var(--text2);
+  letter-spacing: 1px; margin-top: 2px;
+}
+
+/* ── SENSORS GRID ── */
+.sensors-card {}
+
+.sensor-item {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  margin-bottom: 6px;
+  transition: border-color 0.3s;
+  cursor: default;
+}
+
+.sensor-item:last-child { margin-bottom: 0 }
+
+.sensor-left {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.s-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px rgba(48,209,88,0.4);
+  flex-shrink: 0;
+  transition: all 0.3s;
+}
+
+.s-icon { font-size: 16px }
+
+.s-name {
+  font-size: 10px; color: var(--text2);
+  letter-spacing: 1px;
+}
+
+.s-val {
+  font-size: 11px; font-weight: 500;
+  color: var(--ok); letter-spacing: 1px;
+  transition: color 0.3s;
+}
+
+/* ── ACTIONS ── */
+.actions-card {}
+
+.actions-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text2);
+  font-family: var(--mono);
+  font-size: 8px; letter-spacing: 1px;
+}
+
+.action-btn:hover {
+  border-color: var(--accent);
+  background: rgba(10,132,255,0.06);
+  color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.action-btn.red-btn {
+  border-color: rgba(255,45,85,0.3);
+  background: rgba(255,45,85,0.04);
+  color: var(--danger);
+}
+
+.action-btn.red-btn:hover {
+  border-color: var(--danger);
+  background: rgba(255,45,85,0.1);
+}
+
+.action-btn.active-btn {
+  border-color: var(--ok);
+  background: rgba(48,209,88,0.06);
+  color: var(--ok);
+}
+
+.a-icon { font-size: 20px }
+
+/* ── SYSTÈME ── */
+.sys-card {}
+
+.sys-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+}
+
+.sys-row:last-child { border-bottom: none }
+
+.sys-key { color: var(--text2); letter-spacing: 0.5px }
+
+.sys-val {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 500;
+}
+
+.sys-ok { color: var(--ok) }
+.sys-warn { color: var(--warn) }
+
+.sys-led {
+  width: 5px; height: 5px; border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.sys-led.ok { background: var(--ok) }
+.sys-led.warn { background: var(--warn) }
+
+/* ── COLONNE CENTRALE ── */
+.col-center {
+  grid-column: 2; grid-row: 1 / 5;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ── CHART ── */
+.chart-card { flex: 0 0 auto }
+.chart-wrap { height: 200px; position: relative }
+
+/* ── IA CARD ── */
+.ia-card {}
+
+.ia-top {
+  display: grid; grid-template-columns: auto 1fr auto;
+  gap: 16px; align-items: start;
+  margin-bottom: 14px;
+}
+
+.ia-score {
+  text-align: center;
+}
+
+.ia-score-num {
+  font-family: var(--display);
+  font-size: 52px; line-height: 1;
+  color: var(--ok);
+}
+
+.ia-score-label {
+  font-size: 8px; color: var(--text2);
+  letter-spacing: 2px; margin-top: 2px;
+}
+
+.ia-desc {
+  font-size: 10px; color: var(--text2);
+  line-height: 1.8; letter-spacing: 0.3px;
+  padding: 8px 0;
+}
+
+.ia-algo {
+  text-align: right;
+}
+
+.ia-algo-name {
+  font-family: var(--display);
+  font-size: 16px; color: var(--purple);
+  letter-spacing: 1px;
+}
+
+.ia-algo-sub {
+  font-size: 8px; color: var(--text2);
+  letter-spacing: 2px; margin-top: 2px;
+}
+
+.ia-scores-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.ia-score-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+
+.is-val {
+  font-size: 14px; font-weight: 600;
+  line-height: 1;
+}
+
+.is-label {
+  font-size: 8px; color: var(--text2);
+  letter-spacing: 1px; margin-top: 3px;
+}
+
+/* ── ATTAQUES ── */
+.attacks-card {}
+
+.attacks-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.atk-btn {
+  border: 1px solid rgba(255,45,85,0.2);
+  background: rgba(255,45,85,0.03);
+  border-radius: 12px;
+  padding: 14px 12px;
+  cursor: pointer;
+  transition: all 0.25s;
+  text-align: left;
+  position: relative; overflow: hidden;
+}
+
+.atk-btn::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,45,85,0.05), transparent);
+  opacity: 0; transition: opacity 0.25s;
+}
+
+.atk-btn:hover {
+  border-color: var(--danger);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(255,45,85,0.15);
+}
+
+.atk-btn:hover::before { opacity: 1 }
+.atk-btn:active { transform: translateY(0) }
+
+.atk-icon { font-size: 22px; margin-bottom: 8px }
+
+.atk-name {
+  font-family: var(--display);
+  font-size: 13px; letter-spacing: 1px;
+  color: var(--danger); margin-bottom: 4px;
+}
+
+.atk-desc {
+  font-size: 9px; color: var(--text2);
+  line-height: 1.5;
+}
+
+.atk-score {
+  margin-top: 8px;
+  font-size: 9px; color: var(--text3);
+  letter-spacing: 1px;
+}
+
+/* ── ARCHI ── */
+.archi-card {}
+
+.archi-flow {
+  display: flex; flex-direction: column; gap: 0;
+}
+
+.archi-step {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s;
+  cursor: default;
+}
+
+.archi-step:hover { border-color: var(--border2) }
+
+.archi-arrow {
+  text-align: center;
+  color: var(--text3);
+  font-size: 12px;
+  padding: 2px 0;
+  margin-left: 20px;
+}
+
+.archi-icon { font-size: 16px; width: 24px; text-align: center }
+
+.archi-info { flex: 1 }
+
+.archi-name {
+  font-size: 10px; color: var(--text);
+  font-weight: 500; letter-spacing: 0.5px;
+}
+
+.archi-detail {
+  font-size: 8px; color: var(--text2);
+  letter-spacing: 1px; margin-top: 1px;
+}
+
+.archi-tag {
+  font-size: 8px; letter-spacing: 1px;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+}
+
+/* ── COLONNE DROITE ── */
+.col-right {
+  grid-column: 3; grid-row: 1 / 5;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+/* ── ALERTES ── */
+.alerts-card {
+  flex: 1; display: flex; flex-direction: column;
+  min-height: 0;
+}
+
+.alerts-scroll {
+  flex: 1; overflow-y: auto;
+  max-height: 420px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+
+.alerts-scroll::-webkit-scrollbar { width: 2px }
+.alerts-scroll::-webkit-scrollbar-track { background: transparent }
+.alerts-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 1px }
+
+.alert-item {
+  display: flex; gap: 8px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border-left: 2px solid transparent;
+  flex-shrink: 0;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(6px) }
+  to { opacity: 1; transform: translateX(0) }
+}
+
+.alert-item.critical {
+  background: rgba(255,45,85,0.07);
+  border-left-color: var(--danger);
+}
+
+.alert-item.warning {
+  background: rgba(255,149,0,0.06);
+  border-left-color: var(--warn);
+}
+
+.alert-item.info {
+  background: rgba(10,132,255,0.05);
+  border-left-color: var(--accent);
+}
+
+.alert-item.normal {
+  background: rgba(48,209,88,0.04);
+  border-left-color: rgba(48,209,88,0.5);
+}
+
+.al-emoji { font-size: 13px; flex-shrink: 0; padding-top: 1px }
+
+.al-body { flex: 1; min-width: 0 }
+
+.al-title {
+  font-size: 10px; font-weight: 600;
+  color: var(--text); margin-bottom: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.al-desc {
+  font-size: 8px; color: var(--text2);
+  line-height: 1.4;
+}
+
+.al-time {
+  font-size: 7px; color: var(--text3);
+  letter-spacing: 1px; margin-top: 3px;
+}
+
+.no-alert {
+  text-align: center; padding: 32px 16px;
+  color: var(--text3); font-size: 10px; letter-spacing: 1px;
+}
+
+/* ── CLOUDS ── */
+.clouds-card {}
+
+.cloud-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  margin-bottom: 6px;
+  transition: border-color 0.2s;
+}
+
+.cloud-item:last-child { margin-bottom: 0 }
+.cloud-item:hover { border-color: var(--border2) }
+
+.cloud-logo { font-size: 18px; width: 28px; text-align: center }
+
+.cloud-info { flex: 1 }
+
+.cloud-name {
+  font-size: 10px; color: var(--text);
+  font-weight: 500; letter-spacing: 0.5px;
+}
+
+.cloud-desc {
+  font-size: 8px; color: var(--text2);
+  letter-spacing: 0.5px; margin-top: 1px;
+}
+
+.cloud-status {
+  font-size: 8px; letter-spacing: 1px;
+  padding: 2px 8px; border-radius: 10px;
+}
+
+.cloud-status.ok {
+  background: rgba(48,209,88,0.1);
+  border: 1px solid rgba(48,209,88,0.3);
+  color: var(--ok);
+}
+
+/* ── FOOTER ── */
+footer {
+  position: relative; z-index: 1;
+  text-align: center;
+  padding: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 9px; color: var(--text3);
+  letter-spacing: 2px;
+}
+
+footer strong { color: var(--text2) }
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🏠</div>
+    <div>
+      <div class="logo-text">SECURE SMART HOME</div>
+      <div class="logo-sub">AI-BASED CYBERATTACK DETECTION · IOT DASHBOARD</div>
+    </div>
+  </div>
+
+  <div class="header-nav">
+    <button class="nav-btn active">OVERVIEW</button>
+    <button class="nav-btn">CAPTEURS</button>
+    <button class="nav-btn">SÉCURITÉ IA</button>
+    <button class="nav-btn">CLOUD</button>
+  </div>
+
+  <div class="header-right">
+    <div class="badge-live">
+      <div class="dot-pulse"></div>
+      FIREBASE LIVE
+    </div>
+    <div id="hclock">--:--:--</div>
+  </div>
+</header>
+
+<!-- ══ PAGE ══ -->
+<div class="page">
+
+  <!-- ════ COLONNE GAUCHE ════ -->
+  <div class="col-left">
+
+    <!-- Température Hero -->
+    <div class="temp-hero">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot"></div>TEMPÉRATURE AMBIANTE</div>
+        <div class="c-badge" id="temp-sensor-badge">-- °C</div>
+      </div>
+
+      <div class="temp-ring-wrap">
+        <svg width="130" height="130" viewBox="0 0 120 120">
+          <circle class="temp-ring-bg" cx="60" cy="60" r="54"/>
+          <circle id="temp-ring-fill" cx="60" cy="60" r="54"/>
+        </svg>
+        <div class="temp-center">
+          <div id="temp-big">--</div>
+          <div class="temp-unit">°C</div>
+        </div>
+      </div>
+
+      <div class="temp-range">
+        <div class="temp-range-item">
+          <div class="tr-val" style="color:var(--ok)">18–28</div>
+          <div class="tr-label">NORMALE</div>
+        </div>
+        <div class="temp-range-item">
+          <div class="tr-val" style="color:var(--warn)">28–38</div>
+          <div class="tr-label">ÉLEVÉE</div>
+        </div>
+        <div class="temp-range-item">
+          <div class="tr-val" style="color:var(--danger)">&gt;38</div>
+          <div class="tr-label">CRITIQUE</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Capteurs -->
+    <div class="card sensors-card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot" style="background:var(--ok);box-shadow:0 0 6px var(--ok)"></div>CAPTEURS</div>
+        <div class="c-badge">4 EN LIGNE</div>
+      </div>
+
+      <div class="sensor-item" id="mouv-card">
+        <div class="sensor-left">
+          <div class="s-dot" id="mouv-dot"></div>
+          <div class="s-icon">🚶</div>
+          <div class="s-name">MOUVEMENT</div>
+        </div>
+        <div class="s-val" id="mouv-val">--</div>
+      </div>
+
+      <div class="sensor-item" id="porte-card">
+        <div class="sensor-left">
+          <div class="s-dot" id="porte-dot"></div>
+          <div class="s-icon">🚪</div>
+          <div class="s-name">PORTE</div>
+        </div>
+        <div class="s-val" id="porte-val">--</div>
+      </div>
+
+      <div class="sensor-item" id="fumee-card">
+        <div class="sensor-left">
+          <div class="s-dot" id="fumee-dot"></div>
+          <div class="s-icon">🔥</div>
+          <div class="s-name">FUMÉE</div>
+        </div>
+        <div class="s-val" id="fumee-val">--</div>
+      </div>
+    </div>
+
+    <!-- Actionneurs -->
+    <div class="card actions-card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot" style="background:var(--warn);box-shadow:0 0 6px var(--warn)"></div>ACTIONNEURS</div>
+      </div>
+      <div class="actions-grid">
+        <button class="action-btn red-btn" onclick="doAction('alarme',this)">
+          <div class="a-icon">🔔</div>
+          ALARME
+        </button>
+        <button class="action-btn" id="btn-lum" onclick="doAction('lumiere',this)">
+          <div class="a-icon">💡</div>
+          LUMIÈRE
+        </button>
+        <button class="action-btn" onclick="doAction('verrou',this)">
+          <div class="a-icon">🔒</div>
+          VERROU
+        </button>
+      </div>
+    </div>
+
+    <!-- Système -->
+    <div class="card sys-card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot"></div>ÉTAT SYSTÈME</div>
+      </div>
+      <div>
+        <div class="sys-row">
+          <div class="sys-key">MQTT BROKER</div>
+          <div class="sys-val sys-ok"><div class="sys-led ok"></div>MOSQUITTO</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">NODE-RED</div>
+          <div class="sys-val sys-ok"><div class="sys-led ok"></div>ACTIF</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">FIREBASE</div>
+          <div class="sys-val sys-ok"><div class="sys-led ok"></div>CONNECTÉ</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">THINGSBOARD</div>
+          <div class="sys-val sys-ok"><div class="sys-led ok"></div>CONNECTÉ</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">MODÈLE IA</div>
+          <div class="sys-val sys-ok"><div class="sys-led ok"></div>ISOLATION FOREST</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">PROTOCOLE</div>
+          <div class="sys-val sys-ok"><div class="sys-led ok"></div>MQTT / JSON</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════ COLONNE CENTRALE ════ -->
+  <div class="col-center">
+
+    <!-- Chart -->
+    <div class="card chart-card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot"></div>HISTORIQUE TEMPÉRATURE</div>
+        <div class="c-badge">40 DERNIÈRES VALEURS</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="tempChart"></canvas>
+      </div>
+    </div>
+
+    <!-- IA -->
+    <div class="card ia-card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot" style="background:var(--purple);box-shadow:0 0 6px var(--purple)"></div>MODÈLE IA — DÉTECTION CYBERATTAQUES</div>
+        <div class="c-badge" style="color:var(--purple);border-color:rgba(191,90,242,0.3)">SCIKIT-LEARN</div>
+      </div>
+
+      <div class="ia-top">
+        <div class="ia-score">
+          <div class="ia-score-num" id="ia-taux">64%</div>
+          <div class="ia-score-label">TAUX DÉTECTION</div>
+        </div>
+        <div class="ia-desc">
+          Isolation Forest entraîné sur 500 échantillons normaux.<br>
+          Détecte les comportements anormaux sans données d'attaques labellisées.<br>
+          Seuil d'anomalie : score &lt; −0.50 | contamination = 0.15
+        </div>
+        <div class="ia-algo">
+          <div class="ia-algo-name">ISOLATION<br>FOREST</div>
+          <div class="ia-algo-sub">NON SUPERVISÉ</div>
+        </div>
+      </div>
+
+      <div class="ia-scores-row">
+        <div class="ia-score-item">
+          <div class="is-val" style="color:var(--ok)">−0.44</div>
+          <div class="is-label">NORMAL</div>
+        </div>
+        <div class="ia-score-item">
+          <div class="is-val" style="color:var(--warn)">−0.55</div>
+          <div class="is-label">SPOOFING</div>
+        </div>
+        <div class="ia-score-item">
+          <div class="is-val" style="color:var(--danger)">−0.68</div>
+          <div class="is-label">INTRUSION</div>
+        </div>
+        <div class="ia-score-item">
+          <div class="is-val" style="color:var(--danger)">−0.77</div>
+          <div class="is-label">INJECTION</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulation Attaques -->
+    <div class="card attacks-card">
+      <div class="c-head">
+        <div class="c-title">
+          <div class="c-dot" style="background:var(--danger);box-shadow:0 0 6px var(--danger)"></div>
+          SIMULATION CYBERATTAQUES
+        </div>
+        <div class="c-badge" style="color:var(--danger);border-color:rgba(255,45,85,0.3)">TEST IA EN DIRECT</div>
+      </div>
+      <div class="attacks-grid">
+        <button class="atk-btn" onclick="simAttack('spoofing')">
+          <div class="atk-icon">🎭</div>
+          <div class="atk-name">SPOOFING</div>
+          <div class="atk-desc">Injection fausse température (75°C) pour tromper le système</div>
+          <div class="atk-score">score = −0.5524 · DANGER</div>
+        </button>
+        <button class="atk-btn" onclick="simAttack('injection')">
+          <div class="atk-icon">💉</div>
+          <div class="atk-name">INJECTION</div>
+          <div class="atk-desc">Activation simultanée de tous les capteurs — impossible normalement</div>
+          <div class="atk-score">score = −0.7588 · CRITIQUE</div>
+        </button>
+        <button class="atk-btn" onclick="simAttack('intrusion')">
+          <div class="atk-icon">🔓</div>
+          <div class="atk-name">INTRUSION</div>
+          <div class="atk-desc">Mouvement + porte + température basse — signature d'intrusion physique</div>
+          <div class="atk-score">score = −0.6759 · DANGER</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Architecture -->
+    <div class="card archi-card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot"></div>ARCHITECTURE EDGE → CLOUD</div>
+        <div class="c-badge">HYBRIDE</div>
+      </div>
+      <div class="archi-flow">
+        <div class="archi-step">
+          <div class="archi-icon">⚙️</div>
+          <div class="archi-info">
+            <div class="archi-name">Capteurs simulés</div>
+            <div class="archi-detail">Température · Mouvement · Porte · Fumée</div>
+          </div>
+          <div class="archi-tag">NODE-RED</div>
+        </div>
+        <div class="archi-arrow">↓</div>
+        <div class="archi-step">
+          <div class="archi-icon">📡</div>
+          <div class="archi-info">
+            <div class="archi-name">Communication MQTT</div>
+            <div class="archi-detail">Publish / Subscribe · Port 1883 · JSON</div>
+          </div>
+          <div class="archi-tag">MOSQUITTO</div>
+        </div>
+        <div class="archi-arrow">↓</div>
+        <div class="archi-step">
+          <div class="archi-icon">🤖</div>
+          <div class="archi-info">
+            <div class="archi-name">Analyse IA</div>
+            <div class="archi-detail">Isolation Forest · Python · Scikit-learn</div>
+          </div>
+          <div class="archi-tag">EDGE</div>
+        </div>
+        <div class="archi-arrow">↓</div>
+        <div class="archi-step">
+          <div class="archi-icon">☁️</div>
+          <div class="archi-info">
+            <div class="archi-name">Stockage Cloud dual</div>
+            <div class="archi-detail">Firebase Realtime DB + ThingsBoard IoT</div>
+          </div>
+          <div class="archi-tag">CLOUD</div>
+        </div>
+        <div class="archi-arrow">↓</div>
+        <div class="archi-step">
+          <div class="archi-icon">🌐</div>
+          <div class="archi-info">
+            <div class="archi-name">Dashboard Web</div>
+            <div class="archi-detail">Interface temps réel · Alertes · Contrôle</div>
+          </div>
+          <div class="archi-tag">CETTE PAGE</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ════ COLONNE DROITE ════ -->
+  <div class="col-right">
+
+    <!-- Alertes -->
+    <div class="card alerts-card">
+      <div class="c-head">
+        <div class="c-title">
+          <div class="c-dot" style="background:var(--danger);box-shadow:0 0 6px var(--danger)"></div>
+          ALERTES SÉCURITÉ
+        </div>
+        <div class="c-badge" id="alert-badge">0</div>
+      </div>
+      <div class="alerts-scroll" id="alerts-list">
+        <div class="no-alert">⏳ En attente de données Firebase...</div>
+      </div>
+    </div>
+
+    <!-- Plateformes Cloud -->
+    <div class="card clouds-card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot"></div>PLATEFORMES CLOUD</div>
+      </div>
+
+      <div class="cloud-item">
+        <div class="cloud-logo">🔥</div>
+        <div class="cloud-info">
+          <div class="cloud-name">Firebase Realtime DB</div>
+          <div class="cloud-desc">Stockage IoT · Interface Web</div>
+        </div>
+        <div class="cloud-status ok">ACTIF</div>
+      </div>
+
+      <div class="cloud-item">
+        <div class="cloud-logo">📊</div>
+        <div class="cloud-info">
+          <div class="cloud-name">ThingsBoard Cloud</div>
+          <div class="cloud-desc">Dashboard IoT · Alertes pro</div>
+        </div>
+        <div class="cloud-status ok">ACTIF</div>
+      </div>
+
+      <div class="cloud-item">
+        <div class="cloud-logo">🔴</div>
+        <div class="cloud-info">
+          <div class="cloud-name">Node-RED Dashboard</div>
+          <div class="cloud-desc">Monitoring local · localhost:1880</div>
+        </div>
+        <div class="cloud-status ok">ACTIF</div>
+      </div>
+    </div>
+
+    <!-- Projet Info -->
+    <div class="card">
+      <div class="c-head">
+        <div class="c-title"><div class="c-dot"></div>PROJET</div>
+      </div>
+      <div>
+        <div class="sys-row">
+          <div class="sys-key">MODULE</div>
+          <div class="sys-val" style="color:var(--text2)">IoT ET APPLICATIONS</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">FORMATION</div>
+          <div class="sys-val" style="color:var(--text2)">MASTER SBD S2</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">UNIVERSITÉ</div>
+          <div class="sys-val" style="color:var(--text2)">FST TANGER</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">ENCADRANT</div>
+          <div class="sys-val" style="color:var(--accent)">PR. M. EL BRAK</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">TYPE</div>
+          <div class="sys-val" style="color:var(--ok)">SIMULÉ · HYBRIDE</div>
+        </div>
+        <div class="sys-row">
+          <div class="sys-key">ANNÉE</div>
+          <div class="sys-val" style="color:var(--text2)">2025/2026</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer>
+  <strong>SECURE SMART HOME</strong> &nbsp;·&nbsp;
+  Master SBD S2 · FST Tanger · 2025/2026 · Pr. M. EL BRAK &nbsp;·&nbsp;
+  <strong>Node-RED · MQTT · Firebase · ThingsBoard · Python IA</strong>
+</footer>
+
+<script>
+// ── HORLOGE
+setInterval(() => {
+  document.getElementById('hclock').textContent = new Date().toLocaleTimeString('fr');
+}, 1000);
+
+// ── GRAPHIQUE
+const ctx = document.getElementById('tempChart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      data: [],
+      borderColor: '#30d158',
+      backgroundColor: 'rgba(48,209,88,0.05)',
+      borderWidth: 1.5,
+      pointRadius: 2,
+      pointBackgroundColor: '#30d158',
+      tension: 0.4,
+      fill: true
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 300 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#111',
+        borderColor: '#222',
+        borderWidth: 1,
+        titleColor: '#0a84ff',
+        bodyColor: '#e5e5e7',
+        titleFont: { family: 'DM Mono', size: 9 },
+        bodyFont: { family: 'DM Mono', size: 11 },
+        callbacks: {
+          label: ctx => ` ${ctx.raw.toFixed(1)}°C`
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#3a3a3c', font: { size: 8 }, maxTicksLimit: 6 },
+        grid: { color: '#1a1a1a' }
+      },
+      y: {
+        ticks: { color: '#3a3a3c', font: { size: 8 } },
+        grid: { color: '#1a1a1a' },
+        min: 0, max: 55
+      }
+    }
+  }
+});
+
+function updateChart(labels, values, color) {
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = values;
+  chart.data.datasets[0].borderColor = color;
+  chart.data.datasets[0].backgroundColor = color + '0d';
+  chart.data.datasets[0].pointBackgroundColor = color;
+  chart.update('none');
+}
+
+// ── ALERTES
+let alertCount = 0;
+const recentAlerts = {};
+
+function pushAlert(type, emoji, title, desc) {
+  const key = title;
+  if (recentAlerts[key] && Date.now() - recentAlerts[key] < 6000) return;
+  recentAlerts[key] = Date.now();
+
+  alertCount++;
+  document.getElementById('alert-badge').textContent = alertCount;
+
+  const list = document.getElementById('alerts-list');
+  const noAlert = list.querySelector('.no-alert');
+  if (noAlert) noAlert.remove();
+
+  const el = document.createElement('div');
+  el.className = `alert-item ${type}`;
+  el.innerHTML = `
+    <div class="al-emoji">${emoji}</div>
+    <div class="al-body">
+      <div class="al-title">${title}</div>
+      <div class="al-desc">${desc}</div>
+      <div class="al-time">${new Date().toLocaleTimeString('fr')}</div>
+    </div>`;
+  list.insertBefore(el, list.firstChild);
+  while (list.children.length > 40) list.removeChild(list.lastChild);
+}
+
+// ── ACTIONNEURS
+function doAction(type, btn) {
+  const map = {
+    alarme: ['🔔', 'Alarme déclenchée', 'Système d\'alarme activé manuellement'],
+    lumiere: ['💡', 'Lumière togglée', 'État éclairage modifié'],
+    verrou: ['🔒', 'Porte verrouillée', 'Verrou électronique activé']
+  };
+  const [e, t, d] = map[type];
+  pushAlert('info', e, t, d);
+  if (type === 'lumiere') btn.classList.toggle('active-btn');
+  btn.style.transform = 'scale(0.95)';
+  setTimeout(() => btn.style.transform = '', 120);
+}
+
+// ── SIMULATION ATTAQUES
+function simAttack(type) {
+  const attacks = {
+    spoofing: {
+      temp: '75.0', color: '#ff2d55',
+      emoji: '🎭', title: 'Spoofing détecté par IA',
+      desc: 'T=75°C injecté — score=−0.5524 [IA-DANGER]'
+    },
+    injection: {
+      temp: '50.0', color: '#ff2d55',
+      emoji: '💉', title: 'Injection de données détectée',
+      desc: 'Tous capteurs actifs simultanément — score=−0.7588 [IA-CRITIQUE]',
+      all: true
+    },
+    intrusion: {
+      temp: '16.5', color: '#ff9500',
+      emoji: '🔓', title: 'Tentative d\'intrusion détectée',
+      desc: 'Mouvement+Porte+T°basse — score=−0.6759 [IA-DANGER]',
+      intro: true
+    }
+  };
+
+  const a = attacks[type];
+
+  // Update temp ring
+  const val = parseFloat(a.temp);
+  document.getElementById('temp-big').textContent = a.temp;
+  document.getElementById('temp-big').style.color = a.color;
+  document.getElementById('temp-sensor-badge').textContent = a.temp + '°C';
+  const ring = document.getElementById('temp-ring-fill');
+  const circumference = 2 * Math.PI * 54;
+  const pct = Math.min(100, (val/50)*100);
+  ring.style.strokeDashoffset = circumference - (pct/100) * circumference;
+  ring.style.stroke = a.color;
+
+  if (a.all) {
+    ['mouv', 'porte', 'fumee'].forEach(id => {
+      const texts = { mouv: 'DÉTECTÉ', porte: 'OUVERTE', fumee: 'DÉTECTÉE' };
+      document.getElementById(id+'-val').textContent = texts[id];
+      document.getElementById(id+'-val').style.color = '#ff2d55';
+      const dot = document.getElementById(id+'-dot');
+      dot.style.background = '#ff2d55';
+      dot.style.boxShadow = '0 0 10px #ff2d5588';
+    });
+  }
+
+  if (a.intro) {
+    ['mouv','porte'].forEach(id => {
+      const texts = { mouv: 'DÉTECTÉ', porte: 'OUVERTE' };
+      document.getElementById(id+'-val').textContent = texts[id];
+      document.getElementById(id+'-val').style.color = '#ff9500';
+    });
+  }
+
+  pushAlert('critical', a.emoji, a.title, a.desc);
+  pushAlert('info', '🤖', 'IA Isolation Forest', 'Anomalie confirmée · contamination=0.15 · Python scikit-learn');
+}
+</script>
+</body>
+</html>

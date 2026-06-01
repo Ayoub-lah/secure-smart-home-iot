@@ -1,0 +1,999 @@
+[
+  {
+    "id": "tab_smarthome",
+    "type": "tab",
+    "label": "🏠 Secure Smart Home",
+    "disabled": false,
+    "info": "Simulation capteurs Smart Home avec MQTT"
+  },
+  {
+    "id": "inject_temp",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "⏱ Toutes les 5s",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "5",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 210,
+    "y": 60,
+    "wires": [
+      [
+        "func_temperature"
+      ]
+    ]
+  },
+  {
+    "id": "func_temperature",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🌡 Capteur Température",
+    "func": "var temp = parseFloat((18 + Math.random() * 20).toFixed(1));\nvar normal_min = 15;\nvar normal_max = 35;\nvar is_anomaly = (temp > normal_max || temp < normal_min);\n\nmsg.payload = JSON.stringify({\n    capteur: \"temperature\",\n    valeur: temp,\n    unite: \"°C\",\n    anomalie: is_anomaly,\n    timestamp: new Date().toISOString()\n});\nmsg.topic = \"smarthome/temperature\";\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 60,
+    "wires": [
+      [
+        "mqtt_pub_temp",
+        "parse_temp"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_pub_temp",
+    "type": "mqtt out",
+    "z": "tab_smarthome",
+    "name": "Publish temp",
+    "topic": "smarthome/temperature",
+    "qos": "0",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "mqtt_broker_local",
+    "x": 710,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "parse_temp",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "Parser JSON temp",
+    "func": "var data = JSON.parse(msg.payload);\nmsg.payload = data.valeur;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 700,
+    "y": 80,
+    "wires": [
+      [
+        "gauge_temp",
+        "chart_temp"
+      ]
+    ]
+  },
+  {
+    "id": "gauge_temp",
+    "type": "ui_gauge",
+    "z": "tab_smarthome",
+    "name": "Jauge Température",
+    "group": "ui_group_capteurs",
+    "order": 1,
+    "width": "3",
+    "height": "3",
+    "gtype": "gage",
+    "title": "Température",
+    "label": "°C",
+    "format": "{{value}}",
+    "min": 0,
+    "max": 50,
+    "colors": [
+      "#00b500",
+      "#e6e600",
+      "#ca3838"
+    ],
+    "seg1": "25",
+    "seg2": "35",
+    "className": "",
+    "x": 940,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "chart_temp",
+    "type": "ui_chart",
+    "z": "tab_smarthome",
+    "name": "Graphique Température",
+    "group": "ui_group_capteurs",
+    "order": 2,
+    "width": "6",
+    "height": "4",
+    "label": "Température (°C)",
+    "chartType": "line",
+    "legend": "false",
+    "xformat": "HH:mm:ss",
+    "interpolate": "linear",
+    "nodata": "En attente...",
+    "dot": false,
+    "ymin": "0",
+    "ymax": "50",
+    "removeOlder": 1,
+    "removeOlderPoints": "50",
+    "removeOlderUnit": "3600",
+    "cutout": 0,
+    "useOneColor": false,
+    "colors": [
+      "#1f77b4"
+    ],
+    "outputs": 1,
+    "x": 940,
+    "y": 100,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "inject_mouvement",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "⏱ Toutes les 7s",
+    "repeat": "7",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "2",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 210,
+    "y": 160,
+    "wires": [
+      [
+        "func_mouvement"
+      ]
+    ]
+  },
+  {
+    "id": "func_mouvement",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🚶 Capteur Mouvement",
+    "func": "var detected = Math.random() > 0.6 ? 1 : 0;\nmsg.payload = JSON.stringify({\n    capteur: \"mouvement\",\n    valeur: detected,\n    etat: detected ? \"DÉTECTÉ\" : \"AUCUN\",\n    timestamp: new Date().toISOString()\n});\nmsg.topic = \"smarthome/mouvement\";\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 430,
+    "y": 160,
+    "wires": [
+      [
+        "mqtt_pub_mouvement",
+        "parse_mouvement"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_pub_mouvement",
+    "type": "mqtt out",
+    "z": "tab_smarthome",
+    "name": "Publish mouvement",
+    "topic": "smarthome/mouvement",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker_local",
+    "x": 710,
+    "y": 140,
+    "wires": []
+  },
+  {
+    "id": "parse_mouvement",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "Parser mouvement",
+    "func": "var data = JSON.parse(msg.payload);\nmsg.payload = data.etat;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 700,
+    "y": 180,
+    "wires": [
+      [
+        "text_mouvement"
+      ]
+    ]
+  },
+  {
+    "id": "text_mouvement",
+    "type": "ui_text",
+    "z": "tab_smarthome",
+    "group": "ui_group_capteurs",
+    "order": 3,
+    "width": "3",
+    "height": "1",
+    "name": "Mouvement",
+    "label": "🚶 Mouvement :",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "x": 930,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "inject_porte",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "⏱ Toutes les 10s",
+    "repeat": "10",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "3",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 210,
+    "y": 260,
+    "wires": [
+      [
+        "func_porte"
+      ]
+    ]
+  },
+  {
+    "id": "func_porte",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🚪 Capteur Porte",
+    "func": "var open = Math.random() > 0.7 ? 1 : 0;\nmsg.payload = JSON.stringify({\n    capteur: \"porte\",\n    valeur: open,\n    etat: open ? \"OUVERTE\" : \"FERMÉE\",\n    timestamp: new Date().toISOString()\n});\nmsg.topic = \"smarthome/porte\";\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 430,
+    "y": 260,
+    "wires": [
+      [
+        "mqtt_pub_porte",
+        "parse_porte"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_pub_porte",
+    "type": "mqtt out",
+    "z": "tab_smarthome",
+    "name": "Publish porte",
+    "topic": "smarthome/porte",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker_local",
+    "x": 710,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "parse_porte",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "Parser porte",
+    "func": "var data = JSON.parse(msg.payload);\nmsg.payload = data.etat;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 700,
+    "y": 280,
+    "wires": [
+      [
+        "text_porte"
+      ]
+    ]
+  },
+  {
+    "id": "text_porte",
+    "type": "ui_text",
+    "z": "tab_smarthome",
+    "group": "ui_group_capteurs",
+    "order": 4,
+    "width": "3",
+    "height": "1",
+    "name": "Porte",
+    "label": "🚪 Porte :",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "x": 930,
+    "y": 280,
+    "wires": []
+  },
+  {
+    "id": "inject_fumee",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "⏱ Toutes les 8s",
+    "repeat": "8",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 210,
+    "y": 360,
+    "wires": [
+      [
+        "func_fumee"
+      ]
+    ]
+  },
+  {
+    "id": "func_fumee",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🔥 Capteur Fumée",
+    "func": "var smoke = Math.random() > 0.9 ? 1 : 0;\nmsg.payload = JSON.stringify({\n    capteur: \"fumee\",\n    valeur: smoke,\n    etat: smoke ? \"FUMÉE DÉTECTÉE\" : \"NORMAL\",\n    timestamp: new Date().toISOString()\n});\nmsg.topic = \"smarthome/fumee\";\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 430,
+    "y": 360,
+    "wires": [
+      [
+        "mqtt_pub_fumee",
+        "parse_fumee"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_pub_fumee",
+    "type": "mqtt out",
+    "z": "tab_smarthome",
+    "name": "Publish fumee",
+    "topic": "smarthome/fumee",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker_local",
+    "x": 710,
+    "y": 340,
+    "wires": []
+  },
+  {
+    "id": "parse_fumee",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "Parser fumée",
+    "func": "var data = JSON.parse(msg.payload);\nmsg.payload = data.etat;\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 700,
+    "y": 380,
+    "wires": [
+      [
+        "text_fumee"
+      ]
+    ]
+  },
+  {
+    "id": "text_fumee",
+    "type": "ui_text",
+    "z": "tab_smarthome",
+    "group": "ui_group_capteurs",
+    "order": 5,
+    "width": "3",
+    "height": "1",
+    "name": "Fumée",
+    "label": "🔥 Fumée :",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "x": 950,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "mqtt_sub_all",
+    "type": "mqtt in",
+    "z": "tab_smarthome",
+    "name": "Subscribe smarthome/#",
+    "topic": "smarthome/#",
+    "qos": "0",
+    "datatype": "auto",
+    "broker": "mqtt_broker_local",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 210,
+    "y": 480,
+    "wires": [
+      [
+        "func_detection_anomalie"
+      ]
+    ]
+  },
+  {
+    "id": "func_detection_anomalie",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🔍 Détection Anomalie (règles)",
+    "func": "var data;\ntry { data = JSON.parse(msg.payload); } catch(e) { return null; }\n\nvar alerte = null;\nvar niveau = \"INFO\";\n\nif (data.capteur === \"temperature\" && data.valeur > 38) {\n    alerte = \"🌡 ALERTE: Température anormale = \" + data.valeur + \"°C\";\n    niveau = \"DANGER\";\n}\nif (data.capteur === \"fumee\" && data.valeur === 1) {\n    alerte = \"🔥 ALERTE CRITIQUE: Fumée détectée !\";\n    niveau = \"CRITIQUE\";\n}\nif (data.capteur === \"porte\" && data.valeur === 1) {\n    alerte = \"🚪 ATTENTION: Porte ouverte détectée\";\n    niveau = \"WARNING\";\n}\nif (data.capteur === \"mouvement\" && data.valeur === 1) {\n    alerte = \"🚶 NOTICE: Mouvement détecté\";\n    niveau = \"INFO\";\n}\n\nif (alerte) {\n    msg.payload = \"[\" + niveau + \"] \" + alerte + \" | \" + new Date().toLocaleTimeString();\n    return msg;\n}\nreturn null;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 480,
+    "y": 480,
+    "wires": [
+      [
+        "text_alertes",
+        "debug_alertes"
+      ]
+    ]
+  },
+  {
+    "id": "text_alertes",
+    "type": "ui_text",
+    "z": "tab_smarthome",
+    "group": "ui_group_alertes",
+    "order": 1,
+    "width": "12",
+    "height": "2",
+    "name": "Alertes",
+    "label": "🚨 Dernière alerte :",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "x": 780,
+    "y": 460,
+    "wires": []
+  },
+  {
+    "id": "debug_alertes",
+    "type": "debug",
+    "z": "tab_smarthome",
+    "name": "Debug Alertes",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 780,
+    "y": 500,
+    "wires": []
+  },
+  {
+    "id": "btn_alarme",
+    "type": "ui_button",
+    "z": "tab_smarthome",
+    "name": "Déclencher Alarme",
+    "group": "ui_group_actionneurs",
+    "order": 1,
+    "width": "3",
+    "height": "1",
+    "passthru": false,
+    "label": "🔔 Déclencher Alarme",
+    "tooltip": "",
+    "color": "white",
+    "bgcolor": "red",
+    "className": "",
+    "icon": "",
+    "payload": "{\"actionneur\":\"alarme\",\"etat\":\"ON\"}",
+    "payloadType": "json",
+    "topic": "smarthome/actionneurs/alarme",
+    "topicType": "str",
+    "x": 450,
+    "y": 540,
+    "wires": [
+      [
+        "mqtt_pub_actionneurs"
+      ]
+    ]
+  },
+  {
+    "id": "btn_lumiere",
+    "type": "ui_button",
+    "z": "tab_smarthome",
+    "name": "Toggle Lumière",
+    "group": "ui_group_actionneurs",
+    "order": 2,
+    "width": "3",
+    "height": "1",
+    "passthru": false,
+    "label": "💡 Toggle Lumière",
+    "tooltip": "",
+    "color": "white",
+    "bgcolor": "#f4c600",
+    "className": "",
+    "icon": "",
+    "payload": "{\"actionneur\":\"lumiere\",\"etat\":\"TOGGLE\"}",
+    "payloadType": "json",
+    "topic": "smarthome/actionneurs/lumiere",
+    "topicType": "str",
+    "x": 450,
+    "y": 580,
+    "wires": [
+      [
+        "mqtt_pub_actionneurs"
+      ]
+    ]
+  },
+  {
+    "id": "btn_verrou",
+    "type": "ui_button",
+    "z": "tab_smarthome",
+    "name": "Verrouiller Porte",
+    "group": "ui_group_actionneurs",
+    "order": 3,
+    "width": "3",
+    "height": "1",
+    "passthru": false,
+    "label": "🔒 Verrouiller",
+    "tooltip": "",
+    "color": "white",
+    "bgcolor": "#2196F3",
+    "className": "",
+    "icon": "",
+    "payload": "{\"actionneur\":\"verrou\",\"etat\":\"LOCKED\"}",
+    "payloadType": "json",
+    "topic": "smarthome/actionneurs/verrou",
+    "topicType": "str",
+    "x": 450,
+    "y": 620,
+    "wires": [
+      [
+        "mqtt_pub_actionneurs"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_pub_actionneurs",
+    "type": "mqtt out",
+    "z": "tab_smarthome",
+    "name": "Publish Actionneur",
+    "topic": "",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker_local",
+    "x": 750,
+    "y": 580,
+    "wires": []
+  },
+  {
+    "id": "mqtt_sub_firebase2",
+    "type": "mqtt in",
+    "z": "tab_smarthome",
+    "name": "📡 Subscribe → Firebase",
+    "topic": "smarthome/#",
+    "qos": "0",
+    "datatype": "auto",
+    "broker": "mqtt_broker_local",
+    "inputs": 0,
+    "x": 290,
+    "y": 900,
+    "wires": [
+      [
+        "func_firebase_http"
+      ]
+    ]
+  },
+  {
+    "id": "func_firebase_http",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🔧 Préparer requête Firebase",
+    "func": "var data;\ntry { data = JSON.parse(msg.payload); } catch(e) { return null; }\n\nvar capteur = data.capteur || \"unknown\";\n\nmsg.url = \"https://smarthomeiot-fd84c-default-rtdb.europe-west1.firebasedatabase.app/smarthome/\" + capteur + \".json\";\nmsg.method = \"POST\";\nmsg.headers = { \"Content-Type\": \"application/json\" };\nmsg.payload = JSON.stringify({\n    valeur: data.valeur,\n    timestamp: data.timestamp,\n    anomalie: data.anomalie || false\n});\n\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 560,
+    "y": 760,
+    "wires": [
+      [
+        "http_firebase"
+      ]
+    ]
+  },
+  {
+    "id": "http_firebase",
+    "type": "http request",
+    "z": "tab_smarthome",
+    "name": "☁️ Envoyer à Firebase",
+    "method": "use",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "authType": "",
+    "x": 800,
+    "y": 1040,
+    "wires": [
+      [
+        "debug_firebase2"
+      ]
+    ]
+  },
+  {
+    "id": "debug_firebase2",
+    "type": "debug",
+    "z": "tab_smarthome",
+    "name": "✅ Réponse Firebase",
+    "active": true,
+    "tosidebar": true,
+    "complete": "payload",
+    "x": 1020,
+    "y": 900,
+    "wires": []
+  },
+  {
+    "id": "inject_test_normal2",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "🧪 Test Normal",
+    "props": [
+      {
+        "p": "payload",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "{\"temperature\":23,\"mouvement\":0,\"porte\":0,\"fumee\":0}",
+    "payloadType": "str",
+    "x": 420,
+    "y": 1160,
+    "wires": [
+      [
+        "func_build_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inject_test_spoofing2",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "🎭 Test Spoofing",
+    "props": [
+      {
+        "p": "payload",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "{\"temperature\":75,\"mouvement\":0,\"porte\":0,\"fumee\":0}",
+    "payloadType": "str",
+    "x": 260,
+    "y": 1240,
+    "wires": [
+      [
+        "func_build_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inject_test_injection2",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "💉 Test Injection",
+    "props": [
+      {
+        "p": "payload",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "{\"temperature\":50,\"mouvement\":1,\"porte\":1,\"fumee\":1}",
+    "payloadType": "str",
+    "x": 220,
+    "y": 1340,
+    "wires": [
+      [
+        "func_build_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "inject_test_intrusion2",
+    "type": "inject",
+    "z": "tab_smarthome",
+    "name": "🔓 Test Intrusion",
+    "props": [
+      {
+        "p": "payload",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "topic": "",
+    "payload": "{\"temperature\":16,\"mouvement\":1,\"porte\":1,\"fumee\":0}",
+    "payloadType": "str",
+    "x": 200,
+    "y": 1420,
+    "wires": [
+      [
+        "func_build_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_sub_ia4",
+    "type": "mqtt in",
+    "z": "tab_smarthome",
+    "name": "📡 MQTT → IA Auto",
+    "topic": "smarthome/#",
+    "qos": "0",
+    "datatype": "auto",
+    "broker": "mqtt_broker_local",
+    "inputs": 0,
+    "x": 320,
+    "y": 1520,
+    "wires": [
+      [
+        "func_collect_ia4"
+      ]
+    ]
+  },
+  {
+    "id": "func_collect_ia4",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🔧 Collecter capteurs",
+    "func": "var store = flow.get('capteurs4') || {\n    temperature: 22,\n    mouvement: 0,\n    porte: 0,\n    fumee: 0\n};\n\nvar data;\ntry {\n    data = JSON.parse(msg.payload);\n} catch(e) {\n    return null;\n}\n\nif (data.capteur) {\n    store[data.capteur] = data.valeur;\n    flow.set('capteurs4', store);\n}\n\nvar lastSent = flow.get('lastSent4') || 0;\nvar now = Date.now();\n\nif (now - lastSent > 15000) {\n    flow.set('lastSent4', now);\n    msg.payload = JSON.stringify(store);\n    return msg;\n}\n\nreturn null;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 540,
+    "y": 1600,
+    "wires": [
+      [
+        "func_build_cmd"
+      ]
+    ]
+  },
+  {
+    "id": "func_build_cmd",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "⚙️ Construire commande",
+    "func": "var data = msg.payload;\nif (typeof data === 'object') {\n    data = JSON.stringify(data);\n}\n// Construire commande echo | python\nvar pythonPath = 'C:\\\\Users\\\\HP\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python314\\\\python.exe';\nvar scriptPath = 'C:\\\\Users\\\\HP\\\\Downloads\\\\ia_nodered.py';\n\nmsg.payload = 'echo ' + data + ' | \"' + pythonPath + '\" \"' + scriptPath + '\"';\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 630,
+    "y": 1400,
+    "wires": [
+      [
+        "exec_ia4"
+      ]
+    ]
+  },
+  {
+    "id": "func_traiter_ia4",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "📊 Traiter résultat IA",
+    "func": "var resultat;\ntry {\n    resultat = JSON.parse(msg.payload);\n} catch(e) {\n    node.warn('Parse error: ' + msg.payload);\n    return null;\n}\n\nif (resultat.anomalie === true) {\n    var icons = {\n        'spoofing_temperature': '🎭',\n        'injection_donnees': '💉',\n        'intrusion': '🔓',\n        'anomalie_inconnue': '⚠️'\n    };\n    var icon = icons[resultat.type_attaque] || '🚨';\n    msg.payload = icon + ' [IA-' + resultat.niveau + '] ' + resultat.type_attaque + ' | score=' + resultat.score;\n} else if (resultat.niveau === 'ERROR') {\n    msg.payload = '❌ [IA-ERROR] ' + resultat.erreur;\n} else {\n    msg.payload = '✅ [IA-NORMAL] Aucune anomalie | score=' + resultat.score;\n}\n\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 1100,
+    "y": 1220,
+    "wires": [
+      [
+        "debug_ia_result4"
+      ]
+    ]
+  },
+  {
+    "id": "debug_ia_result4",
+    "type": "debug",
+    "z": "tab_smarthome",
+    "name": "🤖 Résultat IA",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "payload",
+    "statusType": "auto",
+    "x": 1240,
+    "y": 1360,
+    "wires": []
+  },
+  {
+    "id": "debug_ia_err4",
+    "type": "debug",
+    "z": "tab_smarthome",
+    "name": "❌ Erreur IA",
+    "active": true,
+    "tosidebar": true,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1020,
+    "y": 1440,
+    "wires": []
+  },
+  {
+    "id": "exec_ia4",
+    "type": "exec",
+    "z": "tab_smarthome",
+    "command": "echo",
+    "addpay": true,
+    "append": "| \"C:\\Users\\HP\\AppData\\Local\\Programs\\Python\\Python314\\python.exe\" \"C:\\Users\\HP\\Downloads\\ia_nodered.py\"",
+    "useSpawn": "false",
+    "timer": "30",
+    "winHide": true,
+    "oldrc": false,
+    "name": "🤖 IA Python",
+    "x": 790,
+    "y": 1300,
+    "wires": [
+      [
+        "func_traiter_ia4"
+      ],
+      [
+        "debug_ia_err4"
+      ],
+      []
+    ]
+  },
+  {
+    "id": "mqtt_sub_tb",
+    "type": "mqtt in",
+    "z": "tab_smarthome",
+    "name": "📡 Subscribe → ThingsBoard",
+    "topic": "smarthome/#",
+    "qos": "0",
+    "datatype": "auto",
+    "broker": "mqtt_broker_local",
+    "inputs": 0,
+    "x": 420,
+    "y": 1800,
+    "wires": [
+      [
+        "func_prepare_tb"
+      ]
+    ]
+  },
+  {
+    "id": "func_prepare_tb",
+    "type": "function",
+    "z": "tab_smarthome",
+    "name": "🔧 Préparer données ThingsBoard",
+    "func": "var data;\ntry { data = JSON.parse(msg.payload); } catch(e) { return null; }\n\nif (!data.capteur) return null;\n\n// Format ThingsBoard telemetry\nvar telemetry = {};\ntelemetry[data.capteur] = data.valeur;\n\nmsg.payload = JSON.stringify(telemetry);\nmsg.topic = \"v1/devices/me/telemetry\";\n\nreturn msg;",
+    "outputs": 1,
+    "noerr": 0,
+    "x": 740,
+    "y": 1740,
+    "wires": [
+      [
+        "mqtt_pub_tb"
+      ]
+    ]
+  },
+  {
+    "id": "mqtt_pub_tb",
+    "type": "mqtt out",
+    "z": "tab_smarthome",
+    "name": "☁️ Publish → ThingsBoard",
+    "topic": "v1/devices/me/telemetry",
+    "qos": "0",
+    "retain": "false",
+    "broker": "mqtt_broker_tb",
+    "x": 770,
+    "y": 1940,
+    "wires": []
+  },
+  {
+    "id": "debug_tb",
+    "type": "debug",
+    "z": "tab_smarthome",
+    "name": "✅ ThingsBoard",
+    "active": true,
+    "tosidebar": true,
+    "complete": "payload",
+    "x": 1020,
+    "y": 1880,
+    "wires": []
+  },
+  {
+    "id": "mqtt_broker_local",
+    "type": "mqtt-broker",
+    "name": "Mosquitto Local",
+    "broker": "localhost",
+    "port": "1883",
+    "clientid": "nodered_smarthome",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthPayload": "",
+    "closeTopic": "",
+    "closeQos": "0",
+    "closePayload": "",
+    "willTopic": "",
+    "willQos": "0",
+    "willPayload": ""
+  },
+  {
+    "id": "ui_group_capteurs",
+    "type": "ui_group",
+    "name": "📊 Capteurs",
+    "tab": "ui_tab_main",
+    "order": 1,
+    "disp": true,
+    "width": "6",
+    "collapse": false
+  },
+  {
+    "id": "ui_group_alertes",
+    "type": "ui_group",
+    "name": "🚨 Alertes Sécurité",
+    "tab": "ui_tab_main",
+    "order": 3,
+    "disp": true,
+    "width": "12",
+    "collapse": false
+  },
+  {
+    "id": "ui_group_actionneurs",
+    "type": "ui_group",
+    "name": "⚙️ Actionneurs",
+    "tab": "ui_tab_main",
+    "order": 2,
+    "disp": true,
+    "width": "6",
+    "collapse": false
+  },
+  {
+    "id": "mqtt_broker_tb",
+    "type": "mqtt-broker",
+    "name": "ThingsBoard Cloud",
+    "broker": "mqtt.thingsboard.cloud",
+    "port": "1883",
+    "clientid": "smarthome_nodered",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "credentials": {
+      "user": "VKrVY6UXnm2KBY9UXD2I",
+      "password": ""
+    }
+  },
+  {
+    "id": "ui_tab_main",
+    "type": "ui_tab",
+    "name": "Smart Home",
+    "icon": "dashboard",
+    "order": 1
+  },
+  {
+    "id": "710c9250bd890a25",
+    "type": "global-config",
+    "env": [],
+    "modules": {
+      "node-red-dashboard": "3.6.6"
+    }
+  }
+]
