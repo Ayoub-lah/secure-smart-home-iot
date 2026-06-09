@@ -456,18 +456,7 @@ smarthome/
     └── verrou          # Contrôle verrou
 ```
 
----
 
-## 👥 Équipe
-
-| Nom | Rôle |
-|-----|------|
-| **LAHLAIBI AYOUB** | Chef de projet, IA Python |
-| **EL KHALDI EL MEHDI** | Node-RED, MQTT |
-| **KARMAS HAMAM** | Firebase, Cloud |
-| **MOHAMED AMINE BAZZA** | Interface Web, ThingsBoard |
-
----
 
 ## 📚 Références
 
